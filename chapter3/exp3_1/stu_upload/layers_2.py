@@ -31,23 +31,26 @@ class ConvolutionalLayer(object):
        height = self.input.shape[2] + self.padding * 2
        width = self.input.shape[3] + self.padding * 2
        self.input_pad = np.zeros([self.input.shape[0], self.input.shape[1], height, width])
-       self.input_pad[:,:,self.padding,self.padding+self.input.shape[2]] = self.input
+       self.input_pad[:,:,self.padding:self.padding+self.input.shape[2],self.padding:self.padding+self.input.shape[3]] = self.input
        height_out = (height - self.kernel_size) // self.stride + 1
        width_out = (width - self.kernel_size) // self.stride + 1
        self.output = np.zeros([self.input.shape[0], self.channel_out, height_out, width_out])
-       for idxn in range(self.input.shape[0]):
-           for idxc in range(self.channel_out):
-               for idxh in range(height_out):
-                   for idxw in range(width_out):
-                       # TODO: 计算卷积层的前向传播，特征图与卷积核的内积再加偏置
-                       h_start = idxh * self.stride
-                       h_end = h_start + self.kernel_size
-                       w_start = idxw * self.stride
-                       w_end = w_start + self.kernel_size
-                       self.output[idxn, idxc, idxh, idxw] = \
-                           np.sum(
-                               self.input_pad[idxn, :, h_start:h_end, w_start:w_end] * self.weight[idxc, :, :, :]) + \
-                           self.bias[idxc]
+       mat_w = self.kernel_size * self.kernel_size * self.channel_in
+       mat_h = height_out * width_out
+       # TODO: 计算卷积层的前向传播，特征图与卷积核的内积再加
+       self.col = np.empty((input.shape[0], mat_h, mat_w))
+       epo = 0
+       for x in range(height_out):
+           for y in range(width_out):
+               bias_x = x * self.stride
+               bias_y = y * self.stride
+               self.col[:, epo, :] = self.input_pad[:, :, bias_x: bias_x + self.kernel_size,bias_y: bias_y + self.kernel_size].reshape(input.shape[0], -1)
+               epo = epo + 1
+
+       output = np.matmul(self.col, self.weight.reshape(-1, self.weight.shape[-1])) + self.bias
+
+       self.output = np.moveaxis(output.reshape(input.shape[0], height_out, width_out, self.channel_out), 3, 1)
+
        return self.output
 
     def load_param(self, weight, bias):  # 参数加载
@@ -67,20 +70,23 @@ class MaxPoolingLayer(object):
         self.max_index = np.zeros(self.input.shape)
         height_out = (self.input.shape[2] - self.kernel_size) // self.stride + 1
         width_out = (self.input.shape[3] - self.kernel_size) // self.stride + 1
-        self.output = np.zeros([self.input.shape[0], self.input.shape[1], height_out, width_out])
-        for idxn in range(self.input.shape[0]):
-            for idxc in range(self.input.shape[1]):
-                for idxh in range(height_out):
-                    for idxw in range(width_out):
-                        # TODO： 计算最大池化层的前向传播， 取池化窗口内的最大值
-                        h_start = idxh * self.stride
-                        h_end = h_start + self.kernel_size
-                        w_start = idxw * self.stride
-                        w_end = w_start + self.kernel_size
-                        self.output[idxn, idxc, idxh, idxw] = np.max(
-                            self.input[idxn, idxc, h_start:h_end, w_start:w_end])
-        return self.output
 
+        mat_w = self.kernel_size * self.kernel_size
+        mat_h = height_out * width_out
+
+        col = np.empty((input.shape[0], self.input.shape[1], mat_h, mat_w))
+        epo = 0
+        for x in range(height_out):
+            for y in range(width_out):
+                bias_x = x * self.stride
+                bias_y = y * self.stride
+                col[:, :, epo, :] = self.input[:, :, bias_x: bias_x + self.kernel_size, bias_y: bias_y + self.kernel_size].reshape(input.shape[0], input.shape[1], -1)
+                epo = epo + 1
+
+        self.output = col.max(axis=3).reshape(input.shape[0], input.shape[1], height_out, width_out)
+
+        return self.output
+# TODO： 计算最大池化层的前向传播， 取池化窗口内的最大值
 class FlattenLayer(object):
     def __init__(self, input_shape, output_shape):  # 扁平化层的初始化
         self.input_shape = input_shape

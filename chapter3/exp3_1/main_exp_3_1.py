@@ -1,4 +1,5 @@
 from stu_upload.vgg_cpu import VGG19
+from stu_upload.vgg_cpu import VGG19
 import numpy as np
 import struct
 import os

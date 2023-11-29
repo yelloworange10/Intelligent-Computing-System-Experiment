@@ -19,7 +19,7 @@ def show_matrix(mat, name):
     pass
 
 def m_mut():
-    for i in range(12):
+    for i in range(25):
         a = np.random.rand(1024, 1024)
         b = np.random.rand(1024, 1024)
         c = np.dot(a, b)

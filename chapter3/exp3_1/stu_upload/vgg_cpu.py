@@ -74,7 +74,7 @@ class VGG19(object):
         self.layers['relu5_4'] = ReLULayer()
         self.layers['pool5'] = MaxPoolingLayer(2, 2)
 
-        self.layers['flatten'] = FlattenLayer([512, 7, 7], [512*7*7])
+        self.layers['flatten'] = FlattenLayer((512, 7, 7), [512*7*7])
         self.layers['fc6'] = FullyConnectedLayer(25088, 4096)
         self.layers['relu6'] = ReLULayer()
         self.layers['fc7'] = FullyConnectedLayer(4096, 4096)
@@ -108,13 +108,13 @@ class VGG19(object):
                 # ours: weights dim [in_channel, height, width, out_channel]
 
                 # TODO：调整参数的形状
-                weight = np.transpose(weight, (2, 0, 1, 3))  # 调整卷积层权重的形状 # 2, 0, 1, 3
+                weight = np.transpose(weight, (2, 0, 1, 3))  # 调整卷积层权重的形状
                 bias = bias.reshape(-1)  # 调整偏置的形状
 
                 self.layers[self.param_layer_name[idx]].load_param(weight, bias)
             if idx >= 37 and 'fc' in self.param_layer_name[idx]:
                 weight, bias = params['layers'][0][idx-1][0][0][0][0]
-                weight = weight.reshape((weight.shape[0], -1)).T  # 调整全连接层权重的形状
+                weight = weight.reshape((-1, weight.shape[-1]))  # 调整全连接层权重的形状
                 self.layers[self.param_layer_name[idx]].load_param(weight, bias)
 
     def load_image(self, image_dir):
@@ -126,7 +126,7 @@ class VGG19(object):
         self.input_image = np.reshape(self.input_image, [1]+list(self.input_image.shape))
         # input dim [N, channel, height, width]
         # TODO：调整图片维度顺序
-        self.input_image = np.transpose(self.input_image, (0, 3, 1, 2))  # 将 [N, H, W, C] 转换为 [N, C, H, W]
+        self.input_image = np.transpose(self.input_image, (0, 3, 1, 2))
         return self.input_image
 
 

@@ -111,7 +111,7 @@ class MNIST_MLP(object):
 
 
     def forward(self, input):  # 神经网络的前向传播
-        m_mut()
+        # m_mut()
 
         # TODO：神经网络的前向传播
         h1=self.fc1.forward(input)
