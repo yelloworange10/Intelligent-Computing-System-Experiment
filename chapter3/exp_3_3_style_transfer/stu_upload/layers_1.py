@@ -23,19 +23,19 @@ class FullyConnectedLayer(object):
         start_time = time.time()
         self.input = input
         # TODO：全连接层的前向传播，计算输出结果
-        self.output = _________________________
+        self.output = np.matmul(input, self.weight) + self.bias
         return self.output
     def backward(self, top_diff):   # 反向传播的计算
         # TODO：全连接层的反向传播，计算参数梯度和本层损失
-        self.d_weight = __________________________
-        self.d_bias = ___________________________
-        bottom_diff = ___________________________
+        self.d_weight = np.matmul(self.input.T, top_diff)
+        self.d_bias = top_diff.T
+        bottom_diff = np.matmul(top_diff, self.weight.T)
         return bottom_diff
     def get_gradient(self):
         return self.d_weight, self.d_bias
     def update_param(self, lr):  # 参数更新
-        self.weight = __________________
-        self.bias = __________________
+        self.weight = self.weight - lr * self.d_weight
+        self.bias = self.bias - lr * np.sum(self.d_bias, axis=1)
     def load_param(self, weight, bias): # 参数加载
         assert self.weight.shape == weight.shape
         assert self.bias.shape == bias.shape
@@ -53,11 +53,11 @@ class ReLULayer(object):
         start_time = time.time()
         self.input = input
         # TODO：ReLU层的前向传播，计算输出结果
-        output = _________________________
+        output = (input > 0) * input
         return output
     def backward(self, top_diff):   # 反向传播的计算
         # TODO：ReLU层的反向传播，计算本层损失
-        bottom_diff = _____________________
+        bottom_diff = (self.input > 0) * top_diff
     
         return bottom_diff
 
@@ -68,8 +68,8 @@ class SoftmaxLossLayer(object):
         # TODO：softmax 损失层的前向传播，计算输出结果
         input_max = np.max(input, axis=1, keepdims=True)
         input_exp = np.exp(input - input_max)
-    
-        self.prob = _______________________
+        exp_sum = np.sum(input_exp, axis=1, keepdims=True)
+        self.prob = input_exp/exp_sum
         return self.prob
     def get_loss(self, label):  # 计算损失
         self.batch_size = self.prob.shape[0]
@@ -79,6 +79,6 @@ class SoftmaxLossLayer(object):
         return loss
     def backward(self):  # 反向传播的计算
         # TODO：softmax 损失层的反向传播，计算本层损失
-        bottom_diff = ___________________
+        bottom_diff = (self.prob - self.label_onehot) / self.batch_size
         return bottom_diff
 

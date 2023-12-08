@@ -37,8 +37,38 @@ class VGG19(object):
         self.layers['relu1_2'] = ReLULayer()
         self.layers['pool1'] = MaxPoolingLayer(2, 2)
 
-        ______________________________
+        self.layers['conv2_1'] = ConvolutionalLayer(3, 64, 128, 1, 1, type=1)
+        self.layers['relu2_1'] = ReLULayer()
+        self.layers['conv2_2'] = ConvolutionalLayer(3, 128, 128, 1, 1, type=1)
+        self.layers['relu2_2'] = ReLULayer()
+        self.layers['pool2'] = MaxPoolingLayer(2, 2)
 
+        self.layers['conv3_1'] = ConvolutionalLayer(3, 128, 256, 1, 1, type=1)
+        self.layers['relu3_1'] = ReLULayer()
+        self.layers['conv3_2'] = ConvolutionalLayer(3, 256, 256, 1, 1, type=1)
+        self.layers['relu3_2'] = ReLULayer()
+        self.layers['conv3_3'] = ConvolutionalLayer(3, 256, 256, 1, 1, type=1)
+        self.layers['relu3_3'] = ReLULayer()
+        self.layers['conv3_4'] = ConvolutionalLayer(3, 256, 256, 1, 1, type=1)
+        self.layers['relu3_4'] = ReLULayer()
+        self.layers['pool3'] = MaxPoolingLayer(2, 2)
+
+        self.layers['conv4_1'] = ConvolutionalLayer(3, 256, 512, 1, 1, type=1)
+        self.layers['relu4_1'] = ReLULayer()
+        self.layers['conv4_2'] = ConvolutionalLayer(3, 512, 512, 1, 1, type=1)
+        self.layers['relu4_2'] = ReLULayer()
+        self.layers['conv4_3'] = ConvolutionalLayer(3, 512, 512, 1, 1, type=1)
+        self.layers['relu4_3'] = ReLULayer()
+        self.layers['conv4_4'] = ConvolutionalLayer(3, 512, 512, 1, 1, type=1)
+        self.layers['relu4_4'] = ReLULayer()
+        self.layers['pool4'] = MaxPoolingLayer(2, 2)
+
+        self.layers['conv5_1'] = ConvolutionalLayer(3, 512, 512, 1, 1, type=1)
+        self.layers['relu5_1'] = ReLULayer()
+        self.layers['conv5_2'] = ConvolutionalLayer(3, 512, 512, 1, 1, type=1)
+        self.layers['relu5_2'] = ReLULayer()
+        self.layers['conv5_3'] = ConvolutionalLayer(3, 512, 512, 1, 1, type=1)
+        self.layers['relu5_3'] = ReLULayer()
         self.layers['conv5_4'] = ConvolutionalLayer(3, 512, 512, 1, 1, type=1)
         self.layers['relu5_4'] = ReLULayer()
         self.layers['pool5'] = MaxPoolingLayer(2, 2)
@@ -78,13 +108,13 @@ class VGG19(object):
         self.input_image = np.reshape(self.input_image, [1]+list(self.input_image.shape))
         # input dim [N, channel, height, width]
         # TODO: 调整输入数据的形状
-        self.input_image = _______________________
+        self.input_image = np.transpose(self.input_image, (0, 3, 1, 2))  # [N, channel, height, width]
         return self.input_image, image_shape
 
     def save_image(self, input_image, image_shape, image_dir):
         #print('Save image at ' + image_dir)
         # TODO：调整输出图片的形状
-        input_image = ___________________________
+        input_image = np.transpose(input_image, [0, 2, 3, 1])
         input_image = input_image[0] + self.image_mean
         input_image = np.clip(input_image, 0, 255).astype(np.uint8)
         input_image = scipy.misc.imresize(input_image, image_shape)
@@ -96,8 +126,9 @@ class VGG19(object):
         layer_forward = {}
         for idx in range(len(self.param_layer_name)):
             #print('Inferencing layer: ' + self.param_layer_name[idx])
+            layer = self.layers[self.param_layer_name[idx]]
             # TODO： 计算VGG19网络的前向传播
-            current = ____________________________
+            current = layer.forward(current)
             if self.param_layer_name[idx] in layer_list:
                 layer_forward[self.param_layer_name[idx]] = current
         #print('Forward time: %f' % (time.time()-start_time))
@@ -108,7 +139,10 @@ class VGG19(object):
         layer_idx = list.index(self.param_layer_name, layer_name)
         for idx in range(layer_idx, -1, -1):
             # TODO： 计算VGG19网络的反向传播
-            dloss = _____________________________
+            layer = self.layers[self.param_layer_name[idx]]
+            # if hasattr(layer, 'backward'):
+            #     dloss = layer.backward(dloss)
+            dloss = layer.backward(dloss)
         #print('Backward time: %f' % (time.time()-start_time))
         return dloss
 
@@ -129,12 +163,15 @@ class AdamOptimizer(object):
     def update(self, input, grad):
         # TODO：补全参数更新过程
         self.step += 1
-        self.mt = __________________________
-        self.vt = __________________________
-        mt_hat = __________________________
-        vt_hat = __________________________
+        # 更新一阶矩估计和二阶矩估计
+        self.mt = self.beta1 * self.mt + (1 - self.beta1) * grad
+        self.vt = self.beta2 * self.vt + (1 - self.beta2) * (grad ** 2)
+        # 对一阶矩估计和二阶矩估计进行无偏修正
+        mt_hat = self.mt / (1 - self.beta1 ** self.step)
+        vt_hat = self.vt / (1 - self.beta2 ** self.step)
         # TODO： 利用梯度的一阶矩和二阶矩的无偏估计更新风格迁移图像
-        output = _________________________
+        # 利用修正后的一阶矩估计和二阶矩估计更新输入
+        output = input - self.lr * mt_hat / (np.sqrt(vt_hat) + self.eps)
         return output
 
 
@@ -171,22 +208,22 @@ if __name__ == '__main__':
         style_diff = np.zeros(transfer_image.shape)
         for layer in CONTENT_LOSS_LAYERS:
             # TODO： 计算内容损失的前向传播
-            current_loss = ____________________________________
+            current_loss = content_loss_layer.forward(transfer_layers[layer], content_layers[layer])
             content_loss = np.append(content_loss, current_loss)
             # TODO： 计算内容损失的反向传播
             dloss = content_loss_layer.backward(transfer_layers[layer], content_layers[layer])
-            content_diff += ___________________________________
+            content_diff += dloss * ALPHA
         for layer in STYLE_LOSS_LAYERS:
             # TODO： 计算风格损失的前向传播
-            current_loss = ___________________________________
+            current_loss = style_loss_layer.forward(transfer_layers[layer], style_layers[layer])
             style_loss = np.append(style_loss, current_loss)
             # TODO： 计算风格损失的反向传播
             dloss = style_loss_layer.backward(transfer_layers[layer], style_layers[layer])
-            style_diff += ____________________________________
+            style_diff += dloss * BETA
         total_loss = ALPHA * np.mean(content_loss) + BETA * np.mean(style_loss)
         image_diff = ALPHA * content_diff / len(CONTENT_LOSS_LAYERS) + BETA * style_diff / len(STYLE_LOSS_LAYERS)
         # TODO： 利用Adam优化器对风格迁移图像进行更新
-        transfer_image = ____________________________________
+        transfer_image = adam_optimizer.update(transfer_image, total_gradient)
         print("Time of one step: %f"%(time.time() - start))
         if step % 1 == 0:
             print('Step %d, loss = %f' % (step, total_loss), content_loss, style_loss)

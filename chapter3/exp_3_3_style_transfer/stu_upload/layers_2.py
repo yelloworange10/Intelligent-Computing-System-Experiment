@@ -31,11 +31,13 @@ class ConvolutionalLayer(object):
         show_matrix(self.bias, 'conv bias ')
     def forward_raw(self, input):
         start_time = time.time()
-        self.input = input # [N, C, H, W]
+        self.input = input  # [N, C, H, W]
+        # TODO: 边界扩充
         height = self.input.shape[2] + self.padding * 2
         width = self.input.shape[3] + self.padding * 2
         self.input_pad = np.zeros([self.input.shape[0], self.input.shape[1], height, width])
-        self.input_pad[:, :, self.padding:self.padding+self.input.shape[2], self.padding:self.padding+self.input.shape[3]] = self.input
+        self.input_pad[:, :, self.padding:self.padding + self.input.shape[2],
+        self.padding:self.padding + self.input.shape[3]] = self.input
         height_out = (height - self.kernel_size) // self.stride + 1
         width_out = (width - self.kernel_size) // self.stride + 1
         self.output = np.zeros([self.input.shape[0], self.channel_out, height_out, width_out])
@@ -44,18 +46,84 @@ class ConvolutionalLayer(object):
                 for idxh in range(height_out):
                     for idxw in range(width_out):
                         # TODO: 计算卷积层的前向传播，特征图与卷积核的内积再加偏置
-                        self.output[idxn, idxc, idxh, idxw] = ____________________________
+                        # h_start = idxh * self.stride
+                        # h_end = h_start + self.kernel_size
+                        # w_start = idxw * self.stride
+                        # w_end = w_start + self.kernel_size
+                        # self.output[idxn, idxc, idxh, idxw] = \
+                        #     np.sum(
+                        #         self.input_pad[idxn, :, h_start:h_end, w_start:w_end] * self.weight[idxc, :, :, :]) + \
+                        #     self.bias[idxc]
+                        bias_x = idxh * self.stride
+                        bias_y = idxw * self.stride
+                        self.output[idxn, idxc, idxh, idxw] = np.dot(
+                            self.input_pad[idxn, :, bias_x: bias_x + self.kernel_size,
+                            bias_y: bias_y + self.kernel_size].flatten(), self.weight[:, :, :, idxc].flatten()) + \
+                                                              self.bias[idxc]
         self.forward_time = time.time() - start_time
         return self.output
     def forward_speedup(self, input):
         # TODO: 改进forward函数，使得计算加速
         start_time = time.time()
-        _______________________
+        self.input = input  # [N, C, H, W]
+        # TODO: 边界扩充
+        height = input.shape[2] + 2 * self.padding
+        width = input.shape[3] + 2 * self.padding
+        self.input_pad = np.zeros([self.input.shape[0], self.input.shape[1], height, width])
+        self.input_pad[:, :, self.padding: self.padding + input.shape[2],
+        self.padding: self.padding + input.shape[3]] = self.input
+        height_out = (height - self.kernel_size) // self.stride + 1
+        width_out = (width - self.kernel_size) // self.stride + 1
+        mat_w = self.kernel_size * self.kernel_size * self.channel_in
+        mat_h = height_out * width_out
+
+        self.col = np.empty((input.shape[0], mat_h, mat_w))
+        cur = 0
+        for x in range(height_out):
+            for y in range(width_out):
+                bias_x = x * self.stride
+                bias_y = y * self.stride
+                self.col[:, cur, :] = self.input_pad[:, :, bias_x: bias_x + self.kernel_size,
+                                      bias_y: bias_y + self.kernel_size].reshape(input.shape[0], -1)
+                cur = cur + 1
+        output = np.matmul(self.col, self.weight.reshape(-1, self.weight.shape[-1])) + self.bias
+        self.output = np.moveaxis(output.reshape(input.shape[0], height_out, width_out, self.channel_out), 3, 1)
         self.forward_time = time.time() - start_time
         return self.output
     def backward_speedup(self, top_diff):
         start_time = time.time()
-        _______________________
+        height_out = (self.input.shape[2] + 2 * self.padding - self.kernel_size) // self.stride + 1
+        width_out = (self.input.shape[3] + 2 * self.padding - self.kernel_size) // self.stride + 1
+
+        top_diff_col = np.transpose(top_diff, [1, 0, 2, 3]).reshape(top_diff.shape[1], -1)
+
+        tmp = np.transpose(self.col.reshape(-1, self.col.shape[-1]), [1, 0])
+        self.d_weight = np.matmul(tmp, top_diff_col.T).reshape(self.channel_in, self.kernel_size, self.kernel_size,
+                                                               self.channel_out)
+        self.d_bias = top_diff_col.sum(axis=1)
+
+        backward_col = np.empty((top_diff.shape[0], self.input.shape[2] * self.input.shape[3],
+                                 self.kernel_size * self.kernel_size * self.channel_out))
+        pad_height = ((self.input.shape[2] - 1) * self.stride + self.kernel_size - height_out) // 2
+        pad_width = ((self.input.shape[3] - 1) * self.stride + self.kernel_size - width_out) // 2
+        top_diff_pad = np.zeros(
+            (top_diff.shape[0], top_diff.shape[1], height_out + 2 * pad_height, width_out + 2 * pad_width))
+        top_diff_pad[:, :, pad_height: height_out + pad_height, pad_width: width_out + pad_width] = top_diff
+        cur = 0
+        for x in range(self.input.shape[2]):
+            for y in range(self.input.shape[3]):
+                bias_x = x * self.stride
+                bias_y = y * self.stride
+                backward_col[:, cur, :] = top_diff_pad[:, :, bias_x: bias_x + self.kernel_size,
+                                          bias_y: bias_y + self.kernel_size].reshape(top_diff.shape[0], -1)
+                cur = cur + 1
+        weight_tmp = np.transpose(self.weight, [3, 1, 2, 0]).reshape(self.channel_out, -1, self.channel_in)[:, ::-1,
+                     :].reshape(-1, self.channel_in)
+        bottom_diff = np.matmul(backward_col, weight_tmp)
+        bottom_diff = np.transpose(
+            bottom_diff.reshape(top_diff.shape[0], self.input.shape[2], self.input.shape[3], self.input.shape[1]),
+            [0, 3, 1, 2])
+
         self.backward_time = time.time() - start_time
         return bottom_diff
     def backward_raw(self, top_diff):
@@ -68,10 +136,18 @@ class ConvolutionalLayer(object):
                 for idxh in range(top_diff.shape[2]):
                     for idxw in range(top_diff.shape[3]):
                         # TODO： 计算卷积层的反向传播， 权重、偏置的梯度和本层损失
-                        self.d_weight[:, :, :, idxc] += ___________________________
-                        self.d_bias[idxc] += ________________________
+                        input_region = self.input_pad[idxn, :,
+                                       idxh * self.stride:idxh * self.stride + self.kernel_size,
+                                       idxw * self.stride:idxw * self.stride + self.kernel_size]
+                        # 计算权重梯度
+                        self.d_weight[:, :, :, idxc] += input_region * top_diff[idxn, idxc, idxh, idxw]
+                        # 计算偏置梯度
+                        self.d_bias[idxc] += top_diff[idxn, idxc, idxh, idxw]
                         bottom_diff[idxn, :, idxh*self.stride:idxh*self.stride+self.kernel_size, idxw*self.stride:idxw*self.stride+self.kernel_size] += top_diff[idxn, idxc, idxh, idxw] * self.weight[:, :, :, idxc]
-        bottom_diff = ____________________________
+            # 裁剪填充的边缘
+            bottom_diff = bottom_diff[:, :,
+                          self.padding:bottom_diff.shape[2] - self.padding,
+                          self.padding:bottom_diff.shape[3] - self.padding]
         self.backward_time = time.time() - start_time
         return bottom_diff
     def get_gradient(self):
@@ -115,7 +191,9 @@ class MaxPoolingLayer(object):
                 for idxh in range(height_out):
                     for idxw in range(width_out):
                         # TODO： 计算最大池化层的前向传播， 取池化窗口内的最大值
-                        self.output[idxn, idxc, idxh, idxw] = ___________________________
+                        window = self.input[idxn, idxc, idxh * self.stride:idxh * self.stride + self.kernel_size,
+                                 idxw * self.stride:idxw * self.stride + self.kernel_size]
+                        self.output[idxn, idxc, idxh, idxw] = np.max(window)
                         curren_max_index = np.argmax(self.input[idxn, idxc, idxh*self.stride:idxh*self.stride+self.kernel_size, idxw*self.stride:idxw*self.stride+self.kernel_size])
                         curren_max_index = np.unravel_index(curren_max_index, [self.kernel_size, self.kernel_size])
                         self.max_index[idxn, idxc, idxh*self.stride+curren_max_index[0], idxw*self.stride+curren_max_index[1]] = 1
@@ -123,12 +201,47 @@ class MaxPoolingLayer(object):
     def forward_speedup(self, input):
         # TODO: 改进forward函数，使得计算加速
         start_time = time.time()
-        __________________________
+        self.input = input  # [N, C, H, W]
+        height_out = (self.input.shape[2] - self.kernel_size) / self.stride + 1
+        width_out = (self.input.shape[3] - self.kernel_size) / self.stride + 1
+        mat_w = self.kernel_size * self.kernel_size
+        mat_h = height_out * width_out
 
+        col = np.empty((input.shape[0], self.input.shape[1], mat_h, mat_w))
+        cur = 0
+        for x in range(height_out):
+            for y in range(width_out):
+                bias_x = x * self.stride
+                bias_y = y * self.stride
+                col[:, :, cur, :] = self.input[:, :, bias_x: bias_x + self.kernel_size,
+                                    bias_y: bias_y + self.kernel_size].reshape(input.shape[0], input.shape[1], -1)
+                cur = cur + 1
+
+        self.output = np.max(col, axis=3, keepdims=True)
+        max_index = np.argmax(
+            col.reshape(input.shape[0], input.shape[1], height_out, width_out, self.kernel_size * self.kernel_size),
+            axis=4)
+        self.max_elements = np.zeros(
+            (input.shape[0], self.input.shape[1], height_out, width_out, self.kernel_size * self.kernel_size))
+        n, c, h, w = self.max_elements.shape[: 4]
+        N, C, H, W = np.ogrid[:n, :c, :h, :w]
+        self.max_elements[N, C, H, W, max_index] = 1
+        self.output = self.output.reshape(input.shape[0], input.shape[1], height_out, width_out)
+        self.forward_time = time.time() - start_time
         return self.output
     def backward_speedup(self, top_diff):
         # TODO: 改进backward函数，使得计算加速
-        __________________________
+        bottom_diff = np.zeros(self.input.shape)
+        contrib = self.max_elements * (top_diff.reshape(list(top_diff.shape) + [1]))
+        for x in range(top_diff.shape[2]):
+            for y in range(top_diff.shape[3]):
+                bias_x = x * self.stride
+                bias_y = y * self.stride
+                bottom_diff[:, :, bias_x: bias_x + self.kernel_size, bias_y: bias_y + self.kernel_size] += contrib[:, :,
+                                                                                                           x, y,
+                                                                                                           :].reshape(
+                    top_diff.shape[0], top_diff.shape[1], self.kernel_size, self.kernel_size)
+
         return bottom_diff
     def backward_raw_book(self, top_diff):
         bottom_diff = np.zeros(self.input.shape)
