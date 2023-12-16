@@ -15,7 +15,7 @@ class COCODataSet(Dataset):
 
     def __init__(self):
         super(COCODataSet, self).__init__()
-        self.zip_files = ZipFile('../data/train2014.zip')
+        self.zip_files = ZipFile('./data/train2014.zip')
         self.data_set = []
         for file_name in self.zip_files.namelist():
             if file_name.endswith('.jpg'):
@@ -180,7 +180,7 @@ def get_gram_matrix(f_map):
 
 
 if __name__ == '__main__':
-    image_style = load_image('../data/udnie.jpg')
+    image_style = load_image('./data/udnie.jpg')
     net = VGG19().cpu()
     g_net = TransNet().cpu()
     print("g_net build PASS!\n")
@@ -253,9 +253,9 @@ if __name__ == '__main__':
             count += 1
             if i % 10 == 0:
                 #TODO: 将图像转换网络的参数fst_train.pth存储在models文件夹下
-                torch.save(g_net.state_dict(), '../models/fst_train.pth')
+                torch.save(g_net.state_dict(), './models/fst_train.pth')
                 #TODO: 利用save_image函数将tensor形式的生成图像image_g以及输入图像image_c以jpg左右拼接的形式保存在/out/train/文件夹下
-                save_image(torch.cat((image_g, image_c), dim=3), f'../out/train/Concat_Img_{j}_{i}.jpg')
+                save_image(torch.cat((image_g, image_c), dim=3), f'./out/train/Concat_Img_{j}_{i}.jpg')
         j += 1
 
     print("TRAIN RESULT PASS!\n")

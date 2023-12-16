@@ -10,8 +10,8 @@ cfgs = [64,'R', 64,'R', 'M', 128,'R', 128,'R', 'M',
        512,'R', 512,'R', 512,'R', 512,'R', 'M',
         512,'R', 512,'R', 512,'R', 512,'R', 'M']
 
-IMAGE_PATH = '../data/strawberries.jpg'
-VGG_PATH = '../data/imagenet-vgg-verydeep-19.mat'
+IMAGE_PATH = 'data/strawberries.jpg'
+VGG_PATH = 'data/imagenet-vgg-verydeep-19.mat'
 
 def vgg19():
     layers = [

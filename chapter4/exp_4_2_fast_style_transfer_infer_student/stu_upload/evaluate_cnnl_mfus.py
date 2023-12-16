@@ -13,7 +13,7 @@ class COCODataSet(Dataset):
 
     def __init__(self):
         super(COCODataSet, self).__init__()
-        self.zip_files = ZipFile('../data/train2014_small.zip')
+        self.zip_files = ZipFile('./data/train2014_small.zip')
         self.data_set = []
         for file_name in self.zip_files.namelist():
             if file_name.endswith('.jpg'):
@@ -132,7 +132,7 @@ if __name__ == '__main__':
     # TODO: 使用cpu生成图像转换网络模型并保存在g_net中
     g_net = TransNet().cpu()
     # TODO: 从/models文件夹下加载网络参数到g_net中
-    g_net.load_state_dict(torch.load('../models/fst.pth', map_location='cpu'))
+    g_net.load_state_dict(torch.load('./models/fst.pth', map_location='cpu'))
     print("g_net build PASS!\n")
     # TODO：将g_net模型转化为eval,并转化为浮点类型，输出得到net
     net = g_net.eval().to(torch.float)
@@ -158,6 +158,6 @@ if __name__ == '__main__':
         delta_time = end - start
         print("Inference (mfus) processing time: %s" % delta_time)
         #TODO: 利用save_image函数将tensor形式的生成图像image_g_mlu以及输入图像image_c以jpg格式左右拼接的形式保存在/out/mlu_cnnl_mfus/文件夹下
-        output_image_path = f"../out/mlu_cnnl_mfus/output_{i}.jpg"
+        output_image_path = f"./out/mlu_cnnl_mfus/output_{i}.jpg"
         save_image(torch.cat((image_c, image_g_mlu), -1), output_image_path)
     print("TEST RESULT PASS!\n")

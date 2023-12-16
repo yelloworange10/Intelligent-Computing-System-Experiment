@@ -11,8 +11,8 @@ cfgs = [64,'R', 64,'R', 'M', 128,'R', 128,'R', 'M',
        512,'R', 512,'R', 512,'R', 512,'R', 'M',
         512,'R', 512,'R', 512,'R', 512,'R', 'M']
 
-IMAGE_PATH = '../data/strawberries.jpg'
-VGG_PATH = '../models/vgg19.pth'
+IMAGE_PATH = 'data/strawberries.jpg'
+VGG_PATH = 'models/vgg19.pth'
 
 def vgg19():
     layers = [
@@ -92,7 +92,7 @@ if __name__ == '__main__':
     with torch.no_grad():
         prob = net(input_image)
     print("cpu infer time:{:.3f} s".format(time.time()-st))
-    with open('../labels/imagenet_classes.txt') as f:  # './labels/imagenet_classes.txt'
+    with open('labels/imagenet_classes.txt') as f:  # './labels/imagenet_classes.txt'
         classes = [line.strip() for line in f.readlines()]
         _, indices = torch.sort(prob, descending=True)
     print("Classification result: id = %s, prob = %f " % (classes[indices[0][0]], prob[0][indices[0][0]].item()))
