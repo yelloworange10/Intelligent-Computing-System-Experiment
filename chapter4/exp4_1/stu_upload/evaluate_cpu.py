@@ -11,8 +11,8 @@ cfgs = [64,'R', 64,'R', 'M', 128,'R', 128,'R', 'M',
        512,'R', 512,'R', 512,'R', 512,'R', 'M',
         512,'R', 512,'R', 512,'R', 512,'R', 'M']
 
-IMAGE_PATH = 'data/strawberries.jpg'
-VGG_PATH = 'models/vgg19.pth'
+IMAGE_PATH = '../data/strawberries.jpg'
+VGG_PATH = '../models/vgg19.pth'
 
 def vgg19():
     layers = [
@@ -29,59 +29,38 @@ def vgg19():
     for i, layer_name in enumerate(layers):
         if layer_name.startswith('conv'):
             # TODO: 在时序容器中传入卷积运算
-            # 根据卷积层的名字决定out_channels
-            if 'conv1' in layer_name:
-                out_channels = 64
-            elif 'conv2' in layer_name:
-                out_channels = 128
-            elif 'conv3' in layer_name:
-                out_channels = 256
-            elif 'conv4' in layer_name or 'conv5' in layer_name:
-                out_channels = 512
-
-            # 添加卷积层到layer_container
-            layer_container.add_module(layer_name, nn.Conv2d(
-                in_channels=in_channels,
-                out_channels=out_channels,
-                kernel_size=3,
-                padding=1))
-            in_channels = out_channels  # 更新下一层的in_channels
+            out_channels = cfgs[i]
+            conv2d = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
+            layer_container.add_module(layer_name, conv2d)
+            in_channels = out_channels
 
         elif layer_name.startswith('relu'):
             # TODO: 在时序容器中执行ReLU计算
             layer_container.add_module(layer_name, nn.ReLU(inplace=True))
-
         elif layer_name.startswith('pool'):
             # TODO: 在时序容器中执行maxpool计算
             layer_container.add_module(layer_name, nn.MaxPool2d(kernel_size=2, stride=2))
-
         elif layer_name == 'flatten':
             # TODO: 在时序容器中执行flatten计算
             layer_container.add_module(layer_name, nn.Flatten())
-
         elif layer_name == 'fc6':
             # TODO: 在时序容器中执行全连接层计算
-            # 注意：全连接层之前需要有一个flatten层来将特征图展平
-            out_features = num_classes
-            layer_container.add_module(layer_name, nn.Linear(in_features=in_channels, out_features=out_features))
-            in_channels = out_features  # 更新全连接层的in_channels
-
+            fc = nn.Linear(in_features=512*7*7, out_features=4096)
+            layer_container.add_module(layer_name, fc)
+            in_channels = 4096
         elif layer_name == 'fc7':
             # TODO: 在时序容器中执行全连接层计算
-            out_features = num_classes
-            layer_container.add_module(layer_name, nn.Linear(in_features=in_channels, out_features=out_features))
-            in_channels = out_features
-
+            fc = nn.Linear(in_features=in_channels, out_features=4096)
+            layer_container.add_module(layer_name, fc)
+            in_channels = 4096
         elif layer_name == 'fc8':
             # TODO: 在时序容器中执行全连接层计算
-            out_features = 4096
-            layer_container.add_module(layer_name, nn.Linear(in_features=in_channels, out_features=out_features))
-            in_channels = out_features
-
+            fc = nn.Linear(in_features=in_channels, out_features=num_classes)
+            layer_container.add_module(layer_name, fc)
         elif layer_name == 'softmax':
             # TODO: 在时序容器中执行Softmax计算
-            layer_container.add_module(layer_name, nn.Softmax(dim=1))
-
+            softmax = nn.Softmax(dim=1)
+            layer_container.add_module(layer_name, softmax)
     return layer_container
 
 
