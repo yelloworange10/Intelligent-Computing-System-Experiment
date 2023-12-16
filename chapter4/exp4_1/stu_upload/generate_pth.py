@@ -10,16 +10,16 @@ cfgs = [64,'R', 64,'R', 'M', 128,'R', 128,'R', 'M',
        512,'R', 512,'R', 512,'R', 512,'R', 'M',
         512,'R', 512,'R', 512,'R', 512,'R', 'M']
 
-IMAGE_PATH = 'data/strawberries.jpg'
-VGG_PATH = 'data/imagenet-vgg-verydeep-19.mat'
+IMAGE_PATH = '../data/strawberries.jpg'
+VGG_PATH = '../data/imagenet-vgg-verydeep-19.mat'
 
 def vgg19():
     layers = [
         'conv1_1', 'relu1_1', 'conv1_2', 'relu1_2', 'pool1',
         'conv2_1', 'relu2_1', 'conv2_2', 'relu2_2', 'pool2',
-        'conv3_1', 'relu3_1', 'conv3_2', 'relu3_2', 'conv3_3', 'relu3_3', 'conv3_4', 'relu3_4', 'pool3',
-        'conv4_1', 'relu4_1', 'conv4_2', 'relu4_2', 'conv4_3', 'relu4_3', 'conv4_4', 'relu4_4', 'pool4',
-        'conv5_1', 'relu5_1', 'conv5_2', 'relu5_2', 'conv5_3', 'relu5_3', 'conv5_4', 'relu5_4', 'pool5',
+        'conv3_1', 'relu3_1', 'conv3_2', 'relu3_2', 'conv3_3','relu3_3', 'conv3_4', 'relu3_4', 'pool3',
+        'conv4_1', 'relu4_1', 'conv4_2', 'relu4_2', 'conv4_3','relu4_3', 'conv4_4', 'relu4_4', 'pool4',
+        'conv5_1', 'relu5_1', 'conv5_2', 'relu5_2', 'conv5_3','relu5_3', 'conv5_4', 'relu5_4', 'pool5',
         'flatten', 'fc6', 'relu6','fc7', 'relu7', 'fc8', 'softmax'
     ]
     layer_container = nn.Sequential()
@@ -28,80 +28,56 @@ def vgg19():
     for i, layer_name in enumerate(layers):
         if layer_name.startswith('conv'):
             # TODO: 在时序容器中传入卷积运算
-            # 根据卷积层的名字决定out_channels
-            if 'conv1' in layer_name:
-                out_channels = 64
-            elif 'conv2' in layer_name:
-                out_channels = 128
-            elif 'conv3' in layer_name:
-                out_channels = 256
-            elif 'conv4' in layer_name or 'conv5' in layer_name:
-                out_channels = 512
-
-            # 添加卷积层到layer_container
-            layer_container.add_module(layer_name, nn.Conv2d(
-                in_channels=in_channels,
-                out_channels=out_channels,
-                kernel_size=3,
-                padding=1))
-            in_channels = out_channels  # 更新下一层的in_channels
+            out_channels = cfgs[i]
+            conv2d = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
+            layer_container.add_module(layer_name, conv2d)
+            in_channels = out_channels
 
         elif layer_name.startswith('relu'):
             # TODO: 在时序容器中执行ReLU计算
             layer_container.add_module(layer_name, nn.ReLU(inplace=True))
-
         elif layer_name.startswith('pool'):
             # TODO: 在时序容器中执行maxpool计算
             layer_container.add_module(layer_name, nn.MaxPool2d(kernel_size=2, stride=2))
-
         elif layer_name == 'flatten':
             # TODO: 在时序容器中执行flatten计算
             layer_container.add_module(layer_name, nn.Flatten())
-
         elif layer_name == 'fc6':
             # TODO: 在时序容器中执行全连接层计算
-            # 注意：全连接层之前需要有一个flatten层来将特征图展平
-            out_features = num_classes
-            layer_container.add_module(layer_name, nn.Linear(in_features=in_channels, out_features=out_features))
-            in_channels = out_features  # 更新全连接层的in_channels
-
+            fc = nn.Linear(in_features=512*7*7, out_features=4096)
+            layer_container.add_module(layer_name, fc)
+            in_channels = 4096
         elif layer_name == 'fc7':
             # TODO: 在时序容器中执行全连接层计算
-            out_features = num_classes
-            layer_container.add_module(layer_name, nn.Linear(in_features=in_channels, out_features=out_features))
-            in_channels = out_features
-
+            fc = nn.Linear(in_features=in_channels, out_features=4096)
+            layer_container.add_module(layer_name, fc)
+            in_channels = 4096
         elif layer_name == 'fc8':
             # TODO: 在时序容器中执行全连接层计算
-            out_features = 4096
-            layer_container.add_module(layer_name, nn.Linear(in_features=in_channels, out_features=out_features))
-            in_channels = out_features
-
+            fc = nn.Linear(in_features=in_channels, out_features=num_classes)
+            layer_container.add_module(layer_name, fc)
         elif layer_name == 'softmax':
             # TODO: 在时序容器中执行Softmax计算
-            layer_container.add_module(layer_name, nn.Softmax(dim=1))
-
+            softmax = nn.Softmax(dim=1)
+            layer_container.add_module(layer_name, softmax)
     return layer_container
 
 
 if __name__ == '__main__':
-    #TODO:使用scipy加载.mat格式的VGG19模型
-    vgg_model = scipy.io.loadmat(VGG_PATH)
-    datas = vgg_model['layers'][0]
+    # TODO:使用scipy加载.mat格式的VGG19模型
+    datas = scipy.io.loadmat(VGG_PATH)
 
     model = vgg19()
     new_state_dict = OrderedDict()
     for i, param_name in enumerate(model.state_dict()):
         name = param_name.split('.')
-        # 假设权重和偏置是以numpy数组存储的
         if name[-1] == 'weight':
             new_state_dict[param_name] = torch.from_numpy(datas[str(i)]).float()
         else:
             new_state_dict[param_name] = torch.from_numpy(datas[str(i)][0]).float()
-    #TODO:加载网络参数到model
+    # TODO:加载网络参数到model
     model.load_state_dict(new_state_dict)
     print("*** Start Saving pth ***")
-    #TODO:保存模型的参数到models/vgg19.pth
-    torch.save(model.state_dict(), '../models/vgg19.pth')
+    # TODO:保存模型的参数到models/vgg19.pth
+    torch.save(model.state_dict(), 'models/vgg19.pth')
     print('Saving pth  PASS.')
-    
