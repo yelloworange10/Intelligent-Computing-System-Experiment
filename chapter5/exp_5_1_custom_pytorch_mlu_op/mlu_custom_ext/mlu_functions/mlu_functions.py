@@ -6,7 +6,7 @@ import torch.jit as jit
 from typing import Any
 
 # TODO: 请补充自定义算子库的名称
-from mlu_custom_ext import *
+from libmlu_custom_ext import *
 
 
 class sigmoid_function(torch.autograd.Function):

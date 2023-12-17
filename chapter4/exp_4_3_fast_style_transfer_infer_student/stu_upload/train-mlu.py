@@ -36,7 +36,7 @@ class COCODataSet(Dataset):
         # TODO: 使用cv2.cvtColor将图片从BGR格式转换成RGB格式
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         # TODO: 将image从numpy形式转换为torch.float32,并将其归一化为[0,1]
-        image = torch.from_numpy(image).float() / 255.0
+        image = torch.from_numpy(image).type(torch.float32) / 255.0
         # TODO: 用permute函数将tensor从HxWxC转换为CxHxW
         image = image.permute(2, 0, 1)  # Change HWC to CHW
         return image
@@ -68,13 +68,13 @@ class ResBlock(nn.Module):
 
             # TODO: 进行卷积，卷积核为3*1*1
             # 进行卷积，卷积核为3*3，通道数不变
-            nn.Conv2d(c, c, kernel_size=3, padding=1, bias=False),
+            nn.Conv2d(c, c, kernel_size=3, padding=1, stride=1, bias=False),
             # TODO: 执行实例归一化
             nn.InstanceNorm2d(c),
             # TODO: 执行ReLU
             nn.ReLU(inplace=True),
             # TODO: 进行卷积，卷积核为3*1*1
-            nn.Conv2d(c, c, kernel_size=3, padding=1, bias=False),
+            nn.Conv2d(c, c, kernel_size=3, padding=1, stride=1, bias=False),
             # TODO: 执行实例归一化
             nn.InstanceNorm2d(c),
         )
@@ -91,7 +91,7 @@ class TransNet(nn.Module):
 
             ###################下采样层################
             # TODO：构建图像转换网络，第一层卷积
-            nn.Conv2d(3, 32, kernel_size=9, padding=4, bias=False),
+            nn.Conv2d(3, 32, kernel_size=9, padding=4,  stride=1, bias=False),
             # TODO：实例归一化
             nn.InstanceNorm2d(32),
             # TODO：创建激活函数ReLU
@@ -137,7 +137,7 @@ class TransNet(nn.Module):
 
             ###############输出层#####################
             # TODO: 执行卷积操作
-            nn.Conv2d(32, 3, kernel_size=9, padding=4, bias=True),
+            nn.Conv2d(32, 3, kernel_size=9, padding=4, stride=1, bias=True),
             # TODO： sigmoid激活函数
             nn.Sigmoid()
         )
@@ -155,9 +155,9 @@ def load_image(path):
     # TODO: 使用cv2.resize()将图像缩放为512*512大小
     image = cv2.resize(image, (512, 512), interpolation=cv2.INTER_AREA)
     # TODO: 将image从numpy形式转换为torch.float32,并将其归一化为[0,1]
-    image = image.astype(numpy.float32) / 255.0
+    image = torch.from_numpy(image).type(torch.float32) / 255.0
     # TODO: 将tensor从HxWxC转换为CxHxW，并对在0维上增加一个维度
-    image_tensor = torch.from_numpy(image).permute(2, 0, 1).unsqueeze(0)
+    image_tensor = image.permute(2, 0, 1).unsqueeze(0)
     return image_tensor
 
 
@@ -210,7 +210,7 @@ if __name__ == '__main__':
 
     j = 0
     count = 0
-    epochs = 100
+    epochs = 1
     while j <= epochs:
         for i, image in enumerate(data_loader):
             image_c = image.cpu()
@@ -234,7 +234,8 @@ if __name__ == '__main__':
             c1, c2, c3, c4 = mlu_net(mlu_image_c)
 
             #TODO: 将内容图像特征c2从计算图中分离并与内容图像特征out2求内容损失loss_c2
-            loss_c2 = mlu_loss_func(out2, c2.detach())
+            out2 = torch.nn.functional.interpolate(out2,size=c2.shape[2:],mode='nearest').detach()
+            loss_c2 = mlu_loss_func(c2, out2)
             loss_c = loss_c2
 
             ##############计算总损失#################
@@ -255,7 +256,7 @@ if __name__ == '__main__':
                 #TODO: 将图像转换网络fst_train_mlu.pth的参数存储在models/文件夹下
                 torch.save(g_net.state_dict(), './models/fst_train_mlu.pth')
                 #TODO: 利用save_image函数将tensor形式的生成图像mlu_image_g以及输入图像mlu_image_c以jpg左右拼接的形式保存在/out/train_mlu/文件夹下
-                save_image(torch.cat((mlu_image_c, mlu_image_g), 2), f'./out/train_mlu/train_result_{j}_{i}.jpg')
+                save_image(torch.cat((mlu_image_g, mlu_image_c), 3), f'./out/train_mlu/train_result_{j}_{i}.jpg')
     j += 1
 
 print("MLU TRAIN RESULT PASS!\n")

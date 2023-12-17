@@ -35,7 +35,7 @@ class COCODataSet(Dataset):
         # TODO: 使用cv2.cvtColor将图片从BGR格式转换成RGB格式
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         # TODO: 将image从numpy形式转换为torch.float32,并将其归一化为[0,1]
-        image = torch.from_numpy(image).float() / 255.0
+        image = torch.from_numpy(image).type(torch.float32) / 255.0
         # TODO: 用permute函数将tensor从HxWxC转换为CxHxW
         image = image.permute(2, 0, 1)  # Change HWC to CHW
         return image
@@ -46,15 +46,15 @@ class VGG19(nn.Module):
         super(VGG19, self).__init__()
         #TODO: 调用vgg19网络
         vgg_pretrained = vgg19(pretrained=True)
-        self.features = vgg_pretrained.features
+        features = vgg_pretrained.features
         #TODO: 定义self.layer1为第2层卷积后对应的特征
-        self.layer1 = nn.Sequential(*list(self.features[:3]))
+        self.layer1 = features[:4]
         #TODO: 定义self.layer2为第4层卷积后对应的特征
-        self.layer2 = nn.Sequential(*list(self.features[3:6]))
+        self.layer2 = features[4:9]
         #TODO: 定义self.layer3为第8层卷积后对应的特征
-        self.layer3 = nn.Sequential(*list(self.features[6:11]))
+        self.layer3 = features[9:18]
         #TODO: 定义self.layer4为第12层卷积后对应的特征
-        self.layer4 = nn.Sequential(*list(self.features[11:20]))
+        self.layer4 = features[18:27]
 
     def forward(self, input_):
         out1 = self.layer1(input_)
@@ -72,13 +72,13 @@ class ResBlock(nn.Module):
 
             # TODO: 进行卷积，卷积核为3*1*1
             # 进行卷积，卷积核为3*3，通道数不变
-            nn.Conv2d(c, c, kernel_size=3, padding=1, bias=False),
+            nn.Conv2d(c, c, kernel_size=3, padding=1, stride=1, bias=False),
             # TODO: 执行实例归一化
             nn.InstanceNorm2d(c),
             # TODO: 执行ReLU
             nn.ReLU(inplace=True),
             # TODO: 进行卷积，卷积核为3*1*1
-            nn.Conv2d(c, c, kernel_size=3, padding=1, bias=False),
+            nn.Conv2d(c, c, kernel_size=3, padding=1, stride=1, bias=False),
             # TODO: 执行实例归一化
             nn.InstanceNorm2d(c),
         )
@@ -96,7 +96,7 @@ class TransNet(nn.Module):
 
             ###################下采样层################
             # TODO：构建图像转换网络，第一层卷积
-            nn.Conv2d(3, 32, kernel_size=9, padding=4, bias=False),
+            nn.Conv2d(3, 32, kernel_size=9, stride=1, padding=4, bias=False),
             # TODO：实例归一化
             nn.InstanceNorm2d(32),
             # TODO：创建激活函数ReLU
@@ -142,7 +142,7 @@ class TransNet(nn.Module):
 
             ###############输出层#####################
             # TODO: 执行卷积操作
-            nn.Conv2d(32, 3, kernel_size=9, padding=4, bias=True),
+            nn.Conv2d(32, 3, kernel_size=9, stride=1, padding=4, bias=True),
             # TODO： sigmoid激活函数
             nn.Sigmoid()
         )
@@ -159,9 +159,9 @@ def load_image(path):
     # TODO: 使用cv2.resize()将图像缩放为512*512大小
     image = cv2.resize(image, (512, 512), interpolation=cv2.INTER_AREA)
     # TODO: 将image从numpy形式转换为torch.float32,并将其归一化为[0,1]
-    image = image.astype(numpy.float32) / 255.0
+    image = torch.from_numpy(image).type(torch.float32) / 255.0
     # TODO: 将tensor从HxWxC转换为CxHxW，并对在0维上增加一个维度
-    image_tensor = torch.from_numpy(image).permute(2, 0, 1).unsqueeze(0)
+    image_tensor = image.permute(2, 0, 1).unsqueeze(0)
     return image_tensor
 
 
@@ -207,7 +207,7 @@ if __name__ == '__main__':
 
     j = 0
     count = 0
-    epochs = 100
+    epochs = 1
     while j <= epochs:
         for i, image in enumerate(data_loader):
             image_c = image.cpu()
@@ -235,8 +235,8 @@ if __name__ == '__main__':
             c3 = net(image_c)[2].cpu()
             c4 = net(image_c)[3].cpu()
             #TODO: 将内容图像特征c2从计算图中分离并与内容图像特征out2通过loss_func得到内容损失loss_c2
-            out2 = torch.nn.functional.interpolate(out2, size=c2.shape[2:], mode='nearest')
-            loss_c2 = loss_func(c2, out2.detach())
+            out2 = torch.nn.functional.interpolate(out2, size=c2.shape[2:], mode='nearest').detach()
+            loss_c2 = loss_func(c2, out2)
 
             ###############计算总损失###################
 
