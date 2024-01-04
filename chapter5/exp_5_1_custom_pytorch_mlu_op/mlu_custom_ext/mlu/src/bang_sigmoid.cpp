@@ -25,9 +25,9 @@ torch::Tensor active_sigmoid_mlu(torch::Tensor x) {
 
   cnrtQueue_t queue = getCurQueue();
   // TODO: 请补充Sigmoid主程序函数接口的签名
-  // 调用之前在头文件中声明的函数
+  // 调用名为 'bang_sigmoid_kernel_entry' 的函数，该函数可能是一个自定义的核函数，用于执行sigmoid激活操作
   bang_sigmoid_kernel_entry(queue, reinterpret_cast<float *>(y_ptr),
-                            reinterpret_cast<float *>(x_ptr), size);
+                          reinterpret_cast<float *>(x_ptr), size);
 
   return y;
 }
