@@ -17,8 +17,11 @@ class sigmoid_function(torch.autograd.Function):
     @staticmethod
     def forward(ctx, x):
         # TODO: 请补充自定义算子的python接口函数名
-        # 自定义算子的python接口函数名，根据之前的cpp文件中的pybind11模块推断
+
+        # 调用自定义的激活函数 'active_sigmoid_mlu'，它是针对特定硬件（如MLU）优化的sigmoid激活函数
         y = active_sigmoid_mlu(x)
+
+        # 保存输入和输出张量以备后向传播使用
         ctx.save_for_backward(*[x, y])
         return y
 
