@@ -17,7 +17,7 @@ class TestSigmoid(unittest.TestCase):
             warmup_iter = 10
             for _ in range(warmup_iter):
                 x_warmup = torch.randn(shape, device='mlu')
-                y_warmup = mlu_functions.sigmoid(x_warmup)  # Assuming sigmoid is the function name
+                y_warmup = mlu_functions.sigmoid(x_warmup)  
                 del x_warmup, y_warmup
 
         for shape in shapes:
@@ -42,7 +42,7 @@ class TestSigmoid(unittest.TestCase):
             warmup_iter = 10
             for _ in range(warmup_iter):
                 x_warmup = torch.randn(shape, device='mlu')
-                y_warmup = mlu_functions.sigmoid(x_warmup)  # Assuming sigmoid is the function name
+                y_warmup = mlu_functions.sigmoid(x_warmup)
                 del x_warmup, y_warmup
 
         for shape in shapes:
