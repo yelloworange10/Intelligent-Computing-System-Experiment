@@ -1,14 +1,14 @@
 # coding=utf-8
 from torchvision.models import vgg19
+import numpy
 from torch import nn
 from zipfile import ZipFile
 from torch.utils.data import Dataset, DataLoader
 from torchvision.utils import save_image
 import torch
 import cv2
-import numpy
 import torch.optim as optim
-from torch.nn import MSELoss
+
 
 
 class COCODataSet(Dataset):
@@ -25,36 +25,33 @@ class COCODataSet(Dataset):
         return len(self.data_set)
 
     def __getitem__(self, item):
+        # 从数据集中获取指定索引的文件路径
         file_path = self.data_set[item]
+        # 从压缩文件中读取图像数据
         image = self.zip_files.read(file_path)
+        # 将读取的字节转换为NumPy数组
         image = numpy.asarray(bytearray(image), dtype='uint8')
-        # TODO: 使用cv2.imdecode()函数从指定的内存缓存中读取数据，并把数据转换(解码)成彩色图像格式。
-        image = cv2.imdecode(image, cv2.IMREAD_COLOR)
-        # TODO: 使用cv2.resize()将图像缩放为512*512大小，其中所采用的插值方式为：区域插值
+
+        image = cv2.imdecode(image, cv2.IMREAD_COLOR)  # # 使用OpenCV解码图像数据
         image = cv2.resize(image, (512, 512), interpolation=cv2.INTER_AREA)
-        # TODO: 使用cv2.cvtColor将图片从BGR格式转换成RGB格式
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        # TODO: 将image从numpy形式转换为torch.float32,并将其归一化为[0,1]
-        image = torch.from_numpy(image).type(torch.float32) / 255.0
-        # TODO: 用permute函数将tensor从HxWxC转换为CxHxW
-        image = image.permute(2, 0, 1)  # Change HWC to CHW
+        image = image.astype(numpy.float32) / 255.0
+        image = torch.from_numpy(image).permute(2, 0, 1)
+        
         return image
+    
 
 
 class VGG19(nn.Module):
     def __init__(self):
         super(VGG19, self).__init__()
         #TODO: 调用vgg19网络
-        vgg_pretrained = vgg19(pretrained=True)
-        features = vgg_pretrained.features
-        #TODO: 定义self.layer1为第2层卷积后对应的特征
-        self.layer1 = features[:4]
-        #TODO: 定义self.layer2为第4层卷积后对应的特征
-        self.layer2 = features[4:9]
-        #TODO: 定义self.layer3为第8层卷积后对应的特征
-        self.layer3 = features[9:18]
-        #TODO: 定义self.layer4为第12层卷积后对应的特征
-        self.layer4 = features[18:27]
+        vgg19_pretrained = vgg19(pretrained=True).features  # 调用预训练的vgg19模型
+
+        self.layer1 = nn.Sequential(*list(vgg19_pretrained.children())[:7])  # 提取VGG-19的前7层，作为当前模型的第一层
+        self.layer2 = nn.Sequential(*list(vgg19_pretrained.children())[7:14])  # 提取VGG-19的第8到第14层，作为当前模型的第二层
+        self.layer3 = nn.Sequential(*list(vgg19_pretrained.children())[14:27])  # 提取VGG-19的第15到第27层，作为当前模型的第三层
+        self.layer4 = nn.Sequential(*list(vgg19_pretrained.children())[27:40])  # 提取VGG-19的第28到第40层，作为当前模型的第四层
 
     def forward(self, input_):
         out1 = self.layer1(input_)
@@ -69,82 +66,75 @@ class ResBlock(nn.Module):
     def __init__(self, c):
         super(ResBlock, self).__init__()
         self.layer = nn.Sequential(
-
-            # TODO: 进行卷积，卷积核为3*1*1
-            # 进行卷积，卷积核为3*3，通道数不变
-            nn.Conv2d(c, c, kernel_size=3, padding=1, stride=1, bias=False),
-            # TODO: 执行实例归一化
-            nn.InstanceNorm2d(c),
-            # TODO: 执行ReLU
+            # 进行卷积，卷积核为3*1*1
+            nn.Conv2d(c, c, kernel_size=3, stride=1, padding=1, bias=False),
+            # 执行实例归一化
+            nn.InstanceNorm2d(c, affine=True),
+            # 执行ReLU
             nn.ReLU(inplace=True),
-            # TODO: 进行卷积，卷积核为3*1*1
-            nn.Conv2d(c, c, kernel_size=3, padding=1, stride=1, bias=False),
-            # TODO: 执行实例归一化
-            nn.InstanceNorm2d(c),
+            # 进行卷积，卷积核为3*1*1
+            nn.Conv2d(c, c, kernel_size=3, stride=1, padding=1, bias=False),
+            # 执行实例归一化
+            nn.InstanceNorm2d(c, affine=True),
         )
-
+        
     def forward(self, x):
-        # TODO: 返回残差运算的结果
+        #TODO: 返回残差运算的结果
         return x + self.layer(x)
-
 
 class TransNet(nn.Module):
 
     def __init__(self):
         super(TransNet, self).__init__()
         self.layer = nn.Sequential(
-
+            
             ###################下采样层################
-            # TODO：构建图像转换网络，第一层卷积
-            nn.Conv2d(3, 32, kernel_size=9, stride=1, padding=4, bias=False),
-            # TODO：实例归一化
-            nn.InstanceNorm2d(32),
-            # TODO：创建激活函数ReLU
-            nn.ReLU(inplace=True),
-            # TODO：第二层卷积
-            nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1, bias=False),
-            # TODO：实例归一化
-            nn.InstanceNorm2d(64),
-            # TODO：创建激活函数ReLU
-            nn.ReLU(inplace=True),
-            # TODO：第三层卷积
-            nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1, bias=False),
-            # TODO：实例归一化
-            nn.InstanceNorm2d(128),
-            # TODO：创建激活函数ReLU
-            nn.ReLU(inplace=True),
+
+            nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False),# 第一层卷积，输入通道数为3，输出通道数为64，卷积核大小为3x3，步长为1，填充为1，无偏置
+
+
+            nn.InstanceNorm2d(64, affine=True),  # 实例规范化层，针对64个输出通道，带有可学习的尺度和平移参数
+            nn.ReLU(inplace=True),  # ReLU激活函数，进行原地操作以节省内存
+
+            nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1, bias=False), # 第二层卷积，输入通道数为64，输出通道数为128，卷积核大小为3x3，步长为2，填充为1，无偏置
+
+
+            nn.InstanceNorm2d(128, affine=True),  # 实例规范化层，针对128个输出通道，带有可学习的尺度和平移参数
+
+            nn.ReLU(inplace=True),  # ReLU激活函数，进行原地操作以节省内存
+
+            nn.Conv2d(128, 256, kernel_size=3, stride=2, padding=1, bias=False),# 第三层卷积，输入通道数为128，输出通道数为256，卷积核大小为3x3，步长为2，填充为1，无偏置
+
+
+            nn.InstanceNorm2d(256, affine=True),  # 实例规范化层，针对256个输出通道，带有可学习的尺度和平移参数
+
+            nn.ReLU(inplace=True),  # ReLU激活函数，进行原地操作以节省内存
 
             ##################残差层##################
-            ResBlock(128),
-            ResBlock(128),
-            ResBlock(128),
-            ResBlock(128),
-            ResBlock(128),
+            ResBlock(256),  # 不太太多残差层
 
             ################上采样层##################
-            # TODO: 使用torch.nn.Upsample对特征图进行上采样
-            nn.Upsample(scale_factor=2, mode='nearest'),
-            # TODO: 执行卷积操作
-            nn.Conv2d(128, 64, kernel_size=3, stride=1, padding=1, bias=False),
-            # TODO: 实例归一化
-            nn.InstanceNorm2d(64),
-            # TODO: 执行ReLU操作
-            nn.ReLU(inplace=True),
+            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False),
 
-            # TODO: 使用torch.nn.Upsample对特征图进行上采样
-            nn.Upsample(scale_factor=2, mode='nearest'),
-            # TODO: 执行卷积操作
-            nn.Conv2d(64, 32, kernel_size=3, stride=1, padding=1, bias=False),
-            # TODO: 实例归一化
-            nn.InstanceNorm2d(32),
-            # TODO: 执行ReLU操作
-            nn.ReLU(inplace=True),
+            nn.Conv2d(256, 128, kernel_size=3, stride=1, padding=1, bias=False),  # 卷积
 
+            nn.InstanceNorm2d(128, affine=True),  # 实例化
+
+            nn.ReLU(inplace=True),  # RELU激活
+
+
+            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False),  # 上采样
+
+            nn.Conv2d(128, 64, kernel_size=3, stride=1, padding=1, bias=False),  # 卷积层
+
+            nn.InstanceNorm2d(64, affine=True),
+
+            nn.ReLU(inplace=True),
+            
             ###############输出层#####################
-            # TODO: 执行卷积操作
-            nn.Conv2d(32, 3, kernel_size=9, stride=1, padding=4, bias=True),
-            # TODO： sigmoid激活函数
-            nn.Sigmoid()
+            nn.Conv2d(64, 3, kernel_size=3, stride=1, padding=1, bias=False),
+
+            nn.Sigmoid()  # sigmoid激活函数
         )
 
     def forward(self, x):
@@ -152,22 +142,16 @@ class TransNet(nn.Module):
 
 
 def load_image(path):
-    # TODO: 使用cv2从路径中读取图片
     image = cv2.imread(path)
-    # TODO: 使用cv2.cvtColor将图片从BGR格式转换成RGB格式
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    # TODO: 使用cv2.resize()将图像缩放为512*512大小
-    image = cv2.resize(image, (512, 512), interpolation=cv2.INTER_AREA)
-    # TODO: 将image从numpy形式转换为torch.float32,并将其归一化为[0,1]
-    image = torch.from_numpy(image).type(torch.float32) / 255.0
-    # TODO: 将tensor从HxWxC转换为CxHxW，并对在0维上增加一个维度
-    image_tensor = image.permute(2, 0, 1).unsqueeze(0)
-    return image_tensor
+    image = cv2.resize(image, (512, 512))
+    image = image.astype(numpy.float32) / 255.0
+    image = torch.from_numpy(image).permute(2, 0, 1).unsqueeze(0)
+        
+    return image
 
 
 def get_gram_matrix(f_map):
-    """
-    """
     n, c, h, w = f_map.shape
     if n == 1:
         f_map = f_map.reshape(c, h * w)
@@ -180,30 +164,27 @@ def get_gram_matrix(f_map):
 
 
 if __name__ == '__main__':
-    image_style = load_image('./data/udnie.jpg')
+    image_style = load_image('./data/udnie.jpg').cpu()
     net = VGG19().cpu()
-    g_net = TransNet().cpu()
+    g_net = TransNet().cpu()  # 图像转换网络
     print("g_net build PASS!\n")
-    #TODO: 使用adam优化器对g_net的参数进行优化，得到optimizer
+
     optimizer = optim.Adam(g_net.parameters(), lr=0.001)
-    #TODO: 在cpu上计算均方误差损失函得到loss_func函数
-    loss_func = MSELoss().cpu()
+
+    loss_func = nn.MSELoss()
+
     print("build loss PASS!\n")
     data_set = COCODataSet()
     print("load COCODataSet PASS!\n")
     batch_size = 1
     data_loader = DataLoader(data_set, batch_size, True, drop_last=True)
-    #TODO：输入的风格图像经过特征提取网络生成风格特征s1-s4
-    s_features = net(image_style)
-    #TODO: 对风格特征s1-s4计算格拉姆矩阵并从当前计算图中分离下来,得到对应的s1-s4
-    s1 = s_features[0].cpu()
-    s2 = s_features[1].cpu()
-    s3 = s_features[2].cpu()
-    s4 = s_features[3].cpu()
-    s1 = get_gram_matrix(s1)
-    s2 = get_gram_matrix(s2)
-    s3 = get_gram_matrix(s3)
-    s4 = get_gram_matrix(s4)
+
+    s1, s2, s3, s4 = net(image_style)  # 将风格图像通过网络(net)传递，得到四个不同层的特征图(s1, s2, s3, s4)
+
+    gram_s1 = get_gram_matrix(s1).detach()  # 计算第一层特征图的Gram矩阵，并从当前计算图中分离
+    gram_s2 = get_gram_matrix(s2).detach()  # 计算第二层特征图的Gram矩阵，并从当前计算图中分离
+    gram_s3 = get_gram_matrix(s3).detach()  # 计算第三层特征图的Gram矩阵，并从当前计算图中分离
+    gram_s4 = get_gram_matrix(s4).detach()  # 计算第四层特征图的Gram矩阵，并从当前计算图中分离
 
     j = 0
     count = 0
@@ -211,51 +192,53 @@ if __name__ == '__main__':
     while j <= epochs:
         for i, image in enumerate(data_loader):
             image_c = image.cpu()
-            #TODO: 将输入图像经过图像转化网络输出生成图像image_g
-            image_g=g_net(image_c)
-            #TODO: 利用特征提取网络提取生成图像的特征out1、out2、out3、out4
-            out1 = net(image_g)[0].cpu()
-            out2 = net(image_g)[1].cpu()
-            out3 = net(image_g)[2].cpu()
-            out4 = net(image_g)[3].cpu()
+            # print("image_c:", image_c.size())
+            image_g = g_net(image_c)
+            # print("image_g: ",image_g.size())
+
+            out1, out2, out3, out4 = net(image_g)
 
             ###############计算风格损失###################
             #TODO: 对生成图像的特征out1-out4计算gram矩阵，并与风格图像的特征s1-s4通过loss_func求损失，分别得到loss_s1-loss_s4
-            loss_s1 = loss_func(get_gram_matrix(out1), s1.detach())
-            loss_s2 = loss_func(get_gram_matrix(out2), s2.detach())
-            loss_s3 = loss_func(get_gram_matrix(out3), s3.detach())
-            loss_s4 = loss_func(get_gram_matrix(out4), s4.detach())
+            gram_out1 = get_gram_matrix(out1)
+            gram_out2 = get_gram_matrix(out2)
+            gram_out3 = get_gram_matrix(out3)
+            gram_out4 = get_gram_matrix(out4)
+
+            loss_s1 = loss_func(gram_out1, gram_s1)
+            loss_s2 = loss_func(gram_out2, gram_s2)
+            loss_s3 = loss_func(gram_out3, gram_s3)
+            loss_s4 = loss_func(gram_out4, gram_s4)
             #TODO：loss_s1-loss_s4相加得到风格损失loss_s
             loss_s = loss_s1 + loss_s2 + loss_s3 + loss_s4
 
             ###############计算内容损失###################
-            #TODO: 将输入图像经过特征提取网络得到内容特图像的特征c1-c4
-            c1 = net(image_c)[0].cpu()
-            c2 = net(image_c)[1].cpu()
-            c3 = net(image_c)[2].cpu()
-            c4 = net(image_c)[3].cpu()
-            #TODO: 将内容图像特征c2从计算图中分离并与内容图像特征out2通过loss_func得到内容损失loss_c2
-            out2 = torch.nn.functional.interpolate(out2, size=c2.shape[2:], mode='nearest').detach()
-            loss_c2 = loss_func(c2, out2)
+            c1, c2, c3, c4 = net(image_c)
+            # print("c2:",c2.size(),"out2:",out2.detach().size())
+            loss_c2 = loss_func(c2, out2.detach())  # 计算内容损失
+            loss_c = loss_c2
 
             ###############计算总损失###################
-
-            loss = loss_c2 + 0.000000005 * loss_s
+            loss = loss_c + 0.000000005 * loss_s
 
             #######清空梯度、计算梯度、更新参数###########
-            #TODO: 梯度初始化为零
+            # TODO: 梯度初始化为零
             optimizer.zero_grad()
-            #TODO: 反向传播求梯度
+            # TODO: 反向传播求梯度
             loss.backward()
-            #TODO: 更新所有参数
+            # TODO: 更新所有参数
             optimizer.step()
-            print('j:',j, 'i:',i, 'loss:',loss.item(), 'loss_c:',loss_c2.item(), 'loss_s:',loss_s.item())
+            print('j:',j, 'i:',i, 'loss:',loss.item(), 'loss_c:',loss_c.item(), 'loss_s:',loss_s.item())
             count += 1
-            if i % 10 == 0:
-                #TODO: 将图像转换网络的参数fst_train.pth存储在models文件夹下
+            if i % 5 == 0:
+
+                #TODO: 将图像转换网络fst_train_mlu.pth的参数存储在models/文件夹下
                 torch.save(g_net.state_dict(), './models/fst_train.pth')
-                #TODO: 利用save_image函数将tensor形式的生成图像image_g以及输入图像image_c以jpg左右拼接的形式保存在/out/train/文件夹下
-                save_image(torch.cat((image_g, image_c), dim=3), f'./out/train/Concat_Img_{j}_{i}.jpg')
+
+                # TODO: 利用save_image函数将tensor形式的生成图像mlu_image_g以及输入图像mlu_image_c以jpg左右拼接的形式保存在/out/train_mlu/文件夹下
+                save_image(torch.cat((image_g, image_c), dim=3), f'./out/train/result_{count}.jpg')
+                break
+
         j += 1
 
     print("TRAIN RESULT PASS!\n")
