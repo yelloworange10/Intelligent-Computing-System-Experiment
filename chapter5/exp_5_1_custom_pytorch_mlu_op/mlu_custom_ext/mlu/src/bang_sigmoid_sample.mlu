@@ -42,33 +42,33 @@ __mlu_global__ void bang_sigmoid_kernel(T *d_dst, T *d_src, int N) {
   for (; i < repeat; i++) {
     // TODO: 请补充拷贝方向
     __memcpy_async(nram_in, d_input_per_task + i * nram_limit,
-                    NRAM_LIMIT_SIZE, GDRAM2NRAM);
-    __sync_io();
+                    NRAM_LIMIT_SIZE, GDRAM2NRAM);// 将全局DRAM（设备内存）中的数据异步拷贝到NRAM（可能是近端RAM或网络RAM）中
+    __sync_io();// 同步IO操作，确保数据拷贝完成
     // TODO: 请补充BANG的sigmoid函数
-    bang_sigmoid(nram_out, nram_in, nram_limit);
-    __sync_compute();
+    bang_sigmoid(nram_out, nram_in, nram_limit);// 使用BANG的sigmoid函数处理数据，将NRAM中的输入数据转换为sigmoid激活后的输出
+    __sync_compute();// 同步计算操作，确保sigmoid处理完成
 
     // TODO: 请补充拷贝方向
     __memcpy_async(d_output_per_task + i * nram_limit, nram_out,
-                   NRAM_LIMIT_SIZE, NRAM2GDRAM);
+                   NRAM_LIMIT_SIZE, NRAM2GDRAM);// 将NRAM中的数据异步拷贝回全局DRAM
 
-    __sync_io();
+    __sync_io();// 再次同步IO操作，确保数据拷贝完成
   }
 
-  // 实际上，对于那个 3 * 4 的矩阵来说，仅仅会运行到这一块，前面那一块循环是不会运行的。
+  // 如果还有剩余的数据要处理（rem > 0）
   if (rem > 0) {
     // TODO: 请补充拷贝方向
     __memcpy_async(nram_in, d_input_per_task + i * nram_limit,
-                   rem * sizeof(T), GDRAM2NRAM);
-    __sync_io();
+                   rem * sizeof(T), GDRAM2NRAM);// 将剩余的数据从全局DRAM异步拷贝到NRAM，'rem * sizeof(T)' 指定拷贝的字节大小
+    __sync_io();// 同步IO操作，确保数据拷贝完成
     // TODO: 请补充BANG的sigmoid函数
-    bang_sigmoid(nram_out, nram_in, 12);
-    __sync_compute();
+    bang_sigmoid(nram_out, nram_in, 12);// 使用BANG的sigmoid函数处理剩余数据，这里处理的数据量为12个元素
+    __sync_compute();// 同步计算操作，确保sigmoid处理完成
     // TODO: 请补充拷贝方向
     __memcpy_async(d_output_per_task + i * nram_limit, nram_out,
-                   rem * sizeof(T), NRAM2GDRAM);
+                   rem * sizeof(T), NRAM2GDRAM);// 将处理后的剩余数据从NRAM异步拷贝回全局DRAM
 
-    __sync_io();
+    __sync_io(); // 再次同步IO操作，确保数据拷贝完成
   }
 }
 
