@@ -104,12 +104,13 @@ def letterbox(im, new_shape=(640, 640), color=(114, 114, 114), auto=True, scaleF
     # Compute padding
     ratio = r, r  # width, height ratios
     # TODO: 计算实际缩放的结果大小,以确保其宽度和高度都是步幅的倍数
-    new_unpad = (int(round(shape[1] * r)), int(round(shape[0] * r)))
-    new_unpad = (new_unpad[0] + stride - new_unpad[0] % stride,
-                 new_unpad[1] + stride - new_unpad[1] % stride)
+    width_scaled = shape[1] * r
+    height_scaled = shape[0] * r
+    new_unpad = (width_scaled, height_scaled)
+
     # TODO: 计算宽度和高度方向上的填充量(padding)，以使新图像的宽度和高度等于new_shape
-    dw = (new_shape[1] - new_unpad[0]) / 2  # 宽度填充
-    dh = (new_shape[0] - new_unpad[1]) / 2  # 高度填充
+    dw = (new_shape[1] - new_unpad[0])  # 宽度填充
+    dh = (new_shape[0] - new_unpad[1])  # 高度填充
     # dw, dh =   # wh padding
 
     # TODO: 如果auto参数为True，那么将填充调整为使新图像的宽度和高度都成为步幅stride的倍数(可使用np.mod函数计算)
